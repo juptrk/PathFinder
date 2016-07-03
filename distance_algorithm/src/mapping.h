@@ -3,7 +3,8 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
-#include "gridtraversal.h"
+#include <list>
+using std::list;
 
 /// The Mapping class provides functions for mapping with an Occupancy Grid.
 class Mapping
@@ -32,17 +33,22 @@ private:
     void updateReferenceGrid(double angle, int position, double act_x, double act_y);
     void updateActualGrid(double angle, int position, double act_x, double act_y);
 
+    list <list <int> > findClusters(int x, int y);
+    void findPoints();
+
     nav_msgs::OccupancyGridPtr subtractGrids(nav_msgs::OccupancyGridPtr &first, const nav_msgs::OccupancyGridPtr &second);
 
     nav_msgs::OdometryConstPtr mOdom; // actual odometry data
     sensor_msgs::LaserScanConstPtr mScan; // actual laser data
     nav_msgs::OccupancyGridPtr mGridRef; // Reference Occupancy Grid
-    nav_msgs::OccupancyGridPtr mGridOld; // Occupancy Grid of the last scan measurement
+    nav_msgs::OccupancyGridPtr mGridCluster; // Occupancy Grid of the last scan measurement
     nav_msgs::OccupancyGridPtr mGridAct; // Occupancy Grid of the current measurement
 
 
     ros::Publisher pub_map;
     ros::Publisher pub_ref_map;
+    ros::Publisher pub_cluster_map;
+
 
     double width;
     double height;

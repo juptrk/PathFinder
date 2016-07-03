@@ -16,6 +16,7 @@ int Mapping::exec(int argc, char *argv[])
     // Set publisher
     pub_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_map", 1, true);
     pub_ref_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_ref_map", 1, true);
+    pub_cluster_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_cluster_map", 1, true);
 
 
     // Main loop
@@ -41,27 +42,27 @@ Mapping::Mapping():
 {
     // Das Gitter wird angelegt
     mGridRef.reset(new nav_msgs::OccupancyGrid);
-    mGridOld.reset(new nav_msgs::OccupancyGrid);
+    mGridCluster.reset(new nav_msgs::OccupancyGrid);
     mGridAct.reset(new nav_msgs::OccupancyGrid);
 
-    mGridRef->info.resolution = mGridOld->info.resolution  = mGridAct->info.resolution = 0.05;
+    mGridRef->info.resolution = mGridCluster->info.resolution  = mGridAct->info.resolution = 0.05;
 
     width = 40;
     height = 70;
     m_width = width / mGridRef->info.resolution;
     m_height = height / mGridRef->info.resolution;
 
-    mGridRef->header.frame_id = mGridOld->header.frame_id = mGridAct->header.frame_id = "/front_laser";
-    mGridRef->info.width = mGridOld->info.width = mGridAct->info.width = m_width;
-    mGridRef->info.height = mGridOld->info.height = mGridAct->info.height = m_height;
+    mGridRef->header.frame_id = mGridCluster->header.frame_id = mGridAct->header.frame_id = "/front_laser";
+    mGridRef->info.width = mGridCluster->info.width = mGridAct->info.width = m_width;
+    mGridRef->info.height = mGridCluster->info.height = mGridAct->info.height = m_height;
     // Initialisierung der Zellen mit 50 und Übernahme von width und height
     mGridRef->data.resize(mGridRef->info.width * mGridRef->info.height, 0);
-    mGridOld->data.resize(mGridOld->info.width * mGridOld->info.height, 0);
+    mGridCluster->data.resize(mGridCluster->info.width * mGridCluster->info.height, 0);
     mGridAct->data.resize(mGridAct->info.width * mGridAct->info.height, 0);
 
     // Setzen des Ursprungs
-    mGridRef->info.origin.position.x = mGridOld->info.origin.position.x = mGridAct->info.origin.position.x = - width / 2.5;
-    mGridRef->info.origin.position.y = mGridOld->info.origin.position.y = mGridAct->info.origin.position.y = - height / 2.5;
+    mGridRef->info.origin.position.x = mGridCluster->info.origin.position.x = mGridAct->info.origin.position.x = - width / 2.5;
+    mGridRef->info.origin.position.y = mGridCluster->info.origin.position.y = mGridAct->info.origin.position.y = - height / 2.5;
 
 }
 
@@ -130,7 +131,11 @@ void Mapping::update()
     else {
         updateActualGrid(angle, position, act_x, act_y);
         mGridAct = subtractGrids(mGridAct, mGridRef);
+
+        findPoints();
+
         pub_map.publish(mGridAct);
+        pub_cluster_map.publish(mGridCluster);
         mGridAct.reset(new nav_msgs::OccupancyGrid);
         mGridAct->info.resolution = 0.05;
         mGridAct->header.frame_id = "/front_laser";
@@ -139,6 +144,15 @@ void Mapping::update()
         mGridAct->info.origin.position.x = - width / 2.5;
         mGridAct->info.origin.position.y = - height / 2.5;
         mGridAct->data.resize(mGridAct->info.width * mGridAct->info.height, 0);
+
+        mGridCluster.reset(new nav_msgs::OccupancyGrid);
+        mGridCluster->info.resolution = 0.05;
+        mGridCluster->header.frame_id = "/front_laser";
+        mGridCluster->info.width = m_width;
+        mGridCluster->info.height = m_height;
+        mGridCluster->info.origin.position.x = - width / 2.5;
+        mGridCluster->info.origin.position.y = - height / 2.5;
+        mGridCluster->data.resize(mGridAct->info.width * mGridAct->info.height, 0);
 
     }
 
@@ -237,4 +251,59 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
         mGridAct->data.at(position) = 100;
     }
 }
+
+void Mapping::findPoints() {
+    for (int i = 0; i < m_width; i++) {
+        for (int j = 0; j < m_height; j++) {
+            int position = (j * m_width) + i;
+
+            if (mGridAct->data.at(position) > 0) {
+                list <list <int> > cluster_list;
+
+                cluster_list = findClusters(i, j);
+
+                for (int s = 0; s < cluster_list.size(); s++) {
+                    int my_pos = (cluster_list.front().back() * m_width) + cluster_list.front().front();
+                    mGridCluster->data.at(my_pos) = 100;
+                    cluster_list.pop_front();
+                }
+
+            }
+        }
+    }
+}
+
+
+
+list <list <int> > Mapping::findClusters(int x, int y) {
+    list <list <int> > cluster_list;
+
+    list <int> temp;
+    temp.push_back(x);
+    temp.push_back(y);
+
+    cluster_list.push_back(temp);
+
+    for (int l = x-0; l <= x+0; l++) {
+        for (int k = y-0; k <= y+0; k++) {
+            if (l == x && k == y) {
+                continue;
+            }
+            int position = (k * m_width) + l;
+
+            if (mGridAct->data.at(position) > 0) {
+                list <list <int> > temp_list;
+                temp_list = findClusters(l, k);
+
+                for (int m = 0; m < temp_list.size(); m++) {
+                    cluster_list.push_back(temp_list.back());
+                    temp_list.pop_back();
+                }
+            }
+        }
+    }
+
+    return cluster_list;
+}
+
 
