@@ -1,6 +1,7 @@
 #include "mapping.h"
 #include <ros/ros.h>
 #include <iostream>
+#include <cmath>
 
 
 using namespace ros;
@@ -17,6 +18,8 @@ int Mapping::exec(int argc, char *argv[])
     pub_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_map", 1, true);
     pub_ref_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_ref_map", 1, true);
     pub_cluster_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_cluster_map", 1, true);
+    pub_cluster_one_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_cluster_one_map", 1, true);
+    pub_cluster_two_map = nh.advertise<nav_msgs::OccupancyGrid>("/occ_cluster_two_map", 1, true);
 
 
     // Main loop
@@ -26,6 +29,8 @@ int Mapping::exec(int argc, char *argv[])
         loop_rate.sleep();
         //pub_map.publish(mGridAct);
         pub_ref_map.publish(mGridRef);
+        pub_cluster_one_map.publish(mGridCluster_one);
+        pub_cluster_two_map.publish(mGridCluster_two);
     }
 
     return 0;
@@ -44,8 +49,11 @@ Mapping::Mapping():
     mGridRef.reset(new nav_msgs::OccupancyGrid);
     mGridCluster.reset(new nav_msgs::OccupancyGrid);
     mGridAct.reset(new nav_msgs::OccupancyGrid);
+    mGridCluster_one.reset(new nav_msgs::OccupancyGrid);
+    mGridCluster_two.reset(new nav_msgs::OccupancyGrid);
 
-    mGridRef->info.resolution = mGridCluster->info.resolution  = mGridAct->info.resolution = 0.05;
+
+    mGridRef->info.resolution = mGridCluster->info.resolution  = mGridAct->info.resolution = mGridCluster_one->info.resolution = mGridCluster_two->info.resolution = 0.05;
 
     width = 40;
     height = 70;
@@ -261,6 +269,7 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
 void Mapping::findPoints() {
     int x_one, x_two, y_one, y_two = 0;
     int counter = 0;
+    bool record_one, record_two = false;
     for (int i = 0; i < m_width; i++) {
         for (int j = 0; j < m_height; j++) {
             int position = (j * m_width) + i;
@@ -273,23 +282,91 @@ void Mapping::findPoints() {
 
                 cluster_list.push_back(temp);
 
+                mGridAct->data.at(position) = 0;
                 findClusters(i, j);
 
                 if (cluster_list.size() >= 5) {
+                    double x_mean, y_mean = 0;
 
                     for (int s = 0; s < cluster_list.size(); s++) {
+                        x_mean += cluster_list.at(s).at(1);
+                        y_mean += cluster_list.at(s).at(0);
                         int my_pos = (cluster_list.at(s).at(1) * m_width) + cluster_list.at(s).at(0);
                         mGridCluster->data.at(my_pos) = 100;
                         mGridAct->data.at(my_pos) = 0;
                     }
+                    x_mean /= cluster_list.size();
+                    y_mean /= cluster_list.size();
+                    //Runden des Wertes um ihn (rot) einzuzeichnen
+                    int x_draw = x_mean;
+                    int y_draw = y_mean;
+                    mGridCluster->data.at((x_draw * m_width) + y_draw)=-100;
+                    //Anzahl der gefundenen Cluster wird hochgezählt
                     counter++;
+
+                    //Die mittlere Koordinate wird in eine der beiden Listen eingetragen
+                    vector <int> temp;
+                    temp.push_back(x_mean);
+                    temp.push_back(y_mean);
+                    //Fuer den allerersten Eintrag wird die Liste festgelegt
+                    if(counter ==1){
+                        if(cluster_one_list.size() == 0){
+                            cluster_one_list.push_back(temp);
+                            record_one = true;
+                        }
+                        else{
+                            //Distanz zu den beiden letzten Punkten in der Liste wird berechnet
+                            double distance_to_one = hypot(abs(x_mean - cluster_one_list.back().at(1)),
+                                                           abs(y_mean - cluster_one_list.back().at(0)));
+                            double distance_to_two = hypot (abs(x_mean - cluster_two_list.back().at(1)),
+                                                            abs(y_mean - cluster_two_list.back().at(0)));
+                            //Falls in beiden Listen kein Eintrag ist wird das Cluster der Liste 1 zugeordnet
+                            //Sonst jeweils der Liste zu der es am nächsten ist
+                            //(leerer Eintrag ist bei (-1000 , -1000) also grosse Distanz
+                            if(distance_to_one <= distance_to_two){
+                                cluster_one_list.push_back(temp);
+                                record_one = true;
+                            }
+                            else{
+                                cluster_two_list.push_back(temp);
+                                record_two = true;
+                            }
+                        }
+
+
+
+                    }
+                    //Wird im gleichen Scan noch ein Cluster erkannt wird dieses der anderen Liste zugeordnet
+                    else if(record_one == true && record_two == false ){
+                        cluster_two_list.push_back(temp);
+                        record_two = true;
+                    }
+                    else if(record_two == true && record_one == false){
+                        cluster_one_list.push_back(temp);
+                        record_one = true;
+                    }
+                    else{
+                        std::cout << "Too many clusters detected!! " << counter << std::endl;
+                    }
                 }
 
                 cluster_list.clear();
             }
         }
         std::cout << "Step: " << counter << std::endl;
+        //Wenn in die Liste kein Cluster eingetragen wurde wird ein leerer Eintrag eingetragen
+        vector <int> temp;
+        temp.push_back(-1000);
+        temp.push_back(-1000);
+
+        if(record_one == false){
+        cluster_one_list.push_back(temp);
+        }
+        else if(record_two == false ){
+         cluster_two_list.push_back(temp);
+        }
     }
+
 }
 
 
@@ -298,9 +375,7 @@ void Mapping::findClusters(int x, int y) {
 
     for (int l = x-5; l <= x+5; l++) {
         for (int k = y-5; k <= y+5; k++) {
-            if (l == x && k == y) {
-                continue;
-            }
+
             int temp_pos = (k * m_width) + l;
 
             if (mGridAct->data.at(temp_pos) > 0) {
@@ -319,5 +394,4 @@ void Mapping::findClusters(int x, int y) {
         }
     }
 }
-
 

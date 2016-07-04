@@ -45,11 +45,14 @@ private:
     nav_msgs::OccupancyGridPtr mGridRef; // Reference Occupancy Grid
     nav_msgs::OccupancyGridPtr mGridCluster; // Occupancy Grid of the last scan measurement
     nav_msgs::OccupancyGridPtr mGridAct; // Occupancy Grid of the current measurement
-
+    nav_msgs::OccupancyGridPtr mGridCluster_one; // Occupancy Grid of the cluster one
+    nav_msgs::OccupancyGridPtr mGridCluster_two; // Occupancy Grid of the cluster two
 
     ros::Publisher pub_map;
     ros::Publisher pub_ref_map;
     ros::Publisher pub_cluster_map;
+    ros::Publisher pub_cluster_one_map;
+    ros::Publisher pub_cluster_two_map;
 
     vector <vector <int> > cluster_list;
     vector <time_t> timestamp_list;
