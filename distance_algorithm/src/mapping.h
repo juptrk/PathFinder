@@ -6,6 +6,9 @@
 #include <vector>
 #include <time.h>
 
+using namespace std;
+
+
 using std::vector;
 
 /// The Mapping class provides functions for mapping with an Occupancy Grid.
@@ -37,6 +40,9 @@ private:
 
     void findClusters(int x, int y);
     void findPoints();
+    void updatePaths();
+    void insertPathData(double x_one, double y_one, double x_two, double y_two);
+    void printStuff(string stuff);
 
     nav_msgs::OccupancyGridPtr subtractGrids(nav_msgs::OccupancyGridPtr &first, const nav_msgs::OccupancyGridPtr &second);
 
@@ -58,6 +64,7 @@ private:
     vector <time_t> timestamp_list;
     vector <vector <int> > cluster_one_list;
     vector <vector <int> > cluster_two_list;
+    vector <vector <int> > cluster_means_vec;
 
     int mOld_x_one, mOld_x_two, mOld_y_one, mOld_y_two;
 

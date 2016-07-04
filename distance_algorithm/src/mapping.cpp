@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 
+#include <fstream>
 
 using namespace ros;
 
@@ -75,10 +76,12 @@ Mapping::Mapping():
     mGridRef->info.origin.position.x = mGridCluster->info.origin.position.x = mGridAct->info.origin.position.x = mGridCluster_one->info.origin.position.x = mGridCluster_two->info.origin.position.x = - width / 2.5;
     mGridRef->info.origin.position.y = mGridCluster->info.origin.position.y = mGridAct->info.origin.position.y = mGridCluster_one->info.origin.position.y = mGridCluster_two->info.origin.position.y= - height / 2.5;
 
-    vector <vector <int> > cluster_list;
-    vector <time_t> timestamp_list;
-    vector <vector <int> > cluster_one_list;
-    vector <vector <int> > cluster_two_list;
+    cluster_list.clear();
+    timestamp_list.clear();
+    cluster_one_list.clear();
+    cluster_two_list.clear();
+    cluster_means_vec.clear();
+
 }
 
 Mapping::~Mapping()
@@ -98,8 +101,8 @@ void Mapping::laserCallback(const sensor_msgs::LaserScanConstPtr &scan)
 
 void Mapping::update()
 {
-
     timestamp_list.push_back(mScan->header.stamp.sec);
+
     counter++;
     // Benötigte Transformation zwischen Laser und Odom
     tf::StampedTransform transform;
@@ -151,6 +154,7 @@ void Mapping::update()
         pub_map.publish(mGridAct);
 
         findPoints();
+        updatePaths();
 
         pub_cluster_map.publish(mGridCluster);
         mGridAct.reset(new nav_msgs::OccupancyGrid);
@@ -170,7 +174,7 @@ void Mapping::update()
         mGridCluster->info.origin.position.x = - width / 2.5;
         mGridCluster->info.origin.position.y = - height / 2.5;
         mGridCluster->data.resize(mGridAct->info.width * mGridAct->info.height, 0);
-
+        printStuff("123");
     }
 
 
@@ -270,10 +274,6 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
 }
 
 void Mapping::findPoints() {
-    int x_one, x_two, y_one, y_two = 0;
-    int counter = 0;
-    bool record_one = false;
-    bool record_two = false;
     for (int i = 0; i < m_width; i++) {
         for (int j = 0; j < m_height; j++) {
             int position = (j * m_width) + i;
@@ -287,11 +287,12 @@ void Mapping::findPoints() {
 
                 mGridAct->data.at(position) = 0;
                 findClusters(i, j);
-                std::cout << "Here test"<< std::endl;
-                std::cout << "Here size" << cluster_list.size() << std::endl;
 
-                if (cluster_list.size() >= 3) {
-                    double x_mean, y_mean = 0;
+                int vec_size = cluster_list.size();
+
+                if (vec_size >= 3) {
+                    double x_mean = 0;
+                    double y_mean = 0;
 
                     for (int s = 0; s < cluster_list.size(); s++) {
                         x_mean += cluster_list.at(s).at(1);
@@ -300,112 +301,26 @@ void Mapping::findPoints() {
                         mGridCluster->data.at(my_pos) = 100;
                         mGridAct->data.at(my_pos) = 0;
                     }
-                    x_mean /= cluster_list.size();
-                    y_mean /= cluster_list.size();
-                    //Runden des Wertes um ihn (rot) einzuzeichnen
-                    int x_draw = x_mean;
-                    int y_draw = y_mean;
-                    mGridCluster->data.at((x_draw * m_width) + y_draw)=-100;
-                    //Anzahl der gefundenen Cluster wird hochgezählt
-                    counter++;
-                    std::cout << "Here counter" << counter << std::endl;
+                    x_mean /= vec_size;
+                    y_mean /= vec_size;
+
+                    mGridCluster->data.at((int(x_mean) * m_width) + int(y_mean))=-100;
 
                     //Die mittlere Koordinate wird in eine der beiden Listen eingetragen
-                    vector <int> temp;
-                    temp.push_back(x_mean);
-                    temp.push_back(y_mean);
+                    vector <int> temp2;
+
+                    temp2.push_back(x_mean);
+                    temp2.push_back(y_mean);
                     //Fuer den allerersten Eintrag wird die Liste festgelegt
-                    if(counter ==1){
-                        if(cluster_one_list.size() == 0){
-                            std::cout << "Here 1" << std::endl;
-                            cluster_one_list.push_back(temp);
-                            record_one = true;
-                            mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
-                            mOld_x_one = x_mean;
-                            mOld_y_one = y_mean;
-                        }
-                        else{
-                            std::cout << "Here 2" << std::endl;
-                            //Distanz zu den beiden letzten Punkten in der Liste wird berechnet
-                            //double distance_to_one = hypot(abs(x_mean - cluster_one_list.at(cluster_one_list.size() -1).at(1)),
-                            //                               abs(y_mean - cluster_one_list.at(cluster_one_list.size() -1).at(0)));
-                            //double distance_to_two = hypot (abs(x_mean - cluster_two_list.at(cluster_two_list.size() -1).at(1)),
-                            //                                abs(y_mean - cluster_two_list.at(cluster_two_list.size() -1).at(0)));
-                            double distance_to_one = hypot(abs(x_mean - mOld_x_one),abs(y_mean - mOld_y_one));
-                            double distance_to_two = hypot(abs(x_mean - mOld_x_two),abs(y_mean - mOld_y_two));
-                            //Falls in beiden Listen kein Eintrag ist wird das Cluster der Liste 1 zugeordnet
-                            //Sonst jeweils der Liste zu der es am nächsten ist
-                            //(leerer Eintrag ist bei (-1000 , -1000) also grosse Distanz
 
-                            std::cout << "Distanz zu eins" << distance_to_one << std::endl;
-                            std::cout << "Distanz zu zwei" << distance_to_two << std::endl;
-                            if(distance_to_one <= distance_to_two){
-                                cluster_one_list.push_back(temp);
-                                record_one = true;
-                                mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
-                                mOld_x_one = x_mean;
-                                mOld_y_one = y_mean;
-                            }
-                            else{
-                                std::cout << "Here 3" << std::endl;
-                                cluster_two_list.push_back(temp);
-                                record_two = true;
-                                mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
-                                mOld_x_two = x_mean;
-                                mOld_y_two = y_mean;
-                            }
-                        }
+                    cluster_means_vec.push_back(temp2);
 
-
-
-                    }
-                    //Wird im gleichen Scan noch ein Cluster erkannt wird dieses der anderen Liste zugeordnet
-                    else if(record_one == true && record_two == false ){
-                        cluster_two_list.push_back(temp);
-                        record_two = true;
-                        std::cout << "cluster two " << counter << std::endl;
-                        mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
-                        mOld_x_two = x_mean;
-                        mOld_y_two = y_mean;
-                    }
-                    else if(record_two == true && record_one == false){
-                        cluster_one_list.push_back(temp);
-                        record_one = true;
-                        std::cout << "cluster one " << counter << std::endl;
-                        mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
-                        mOld_x_one = x_mean;
-                        mOld_y_one = y_mean;
-                    }
-                    else{
-                        std::cout << "Too many clusters detected!! " << counter << std::endl;
-                    }
                 }
 
                 cluster_list.clear();
             }
         }
-        //std::cout << "Step: " << counter << std::endl;
-        //Wenn in die Liste kein Cluster eingetragen wurde wird ein leerer Eintrag eingetragen
-        vector <int> temp;
-        temp.push_back(-1000);
-        temp.push_back(-1000);
-
-        //std::cout << "recordOne " << record_one << std::endl;
-        //std::cout << "recordTwo " << record_two << std::endl;
-        if(record_one == false){
-        cluster_one_list.push_back(temp);
-        mOld_x_one = -1000;
-        mOld_y_one = -1000;
-        //std::cout << "No cluster one " << counter << std::endl;
-        }
-        if(record_two == false ){
-         cluster_two_list.push_back(temp);
-         mOld_x_two = -1000;
-         mOld_y_two = -1000;
-        //std::cout << "No cluster two " << counter << std::endl;
-        }
     }
-
 }
 
 
@@ -419,11 +334,11 @@ void Mapping::findClusters(int x, int y) {
 
             if (mGridAct->data.at(temp_pos) > 0) {
 
-                vector <int> temp;
-                temp.push_back(l);
-                temp.push_back(k);
+                vector <int> temp3;
+                temp3.push_back(l);
+                temp3.push_back(k);
 
-                cluster_list.push_back(temp);
+                cluster_list.push_back(temp3);
 
                 mGridAct->data.at(temp_pos) = 0;
 
@@ -432,5 +347,109 @@ void Mapping::findClusters(int x, int y) {
             }
         }
     }
+}
+
+
+void Mapping::updatePaths() {
+    int means_number = cluster_means_vec.size();
+
+    if (means_number == 0) {
+        vector <int> temp;
+        temp.push_back(-1000);
+        temp.push_back(-1000);
+        cluster_one_list.push_back(temp);
+        cluster_two_list.push_back(temp);
+    }
+    else if (means_number == 1) {
+        double y = cluster_means_vec.at(0).at(1);
+        double x = cluster_means_vec.at(0).at(0);
+        double distance_to_one = hypot(abs(x - mOld_x_one),abs(y - mOld_y_one));
+        double distance_to_two = hypot(abs(x - mOld_x_two),abs(y - mOld_y_two));
+
+        vector <int> temp;
+        temp.push_back(x);
+        temp.push_back(y);
+
+        if(distance_to_one <= distance_to_two){
+
+            cluster_one_list.push_back(temp);
+            mGridCluster_one->data.at((int(x) * m_width) + int(y))=-100;
+            mOld_x_one = x;
+            mOld_y_one = y;
+        }
+        else{
+            cluster_two_list.push_back(temp);
+            mGridCluster_one->data.at((int(x) * m_width) + int(y))=100;
+            mOld_x_two = x;
+            mOld_y_two = y;
+        }
+    }
+    else if (means_number == 2) {
+        double y_one = cluster_means_vec.at(0).at(1);
+        double x_one = cluster_means_vec.at(0).at(0);
+        double y_two = cluster_means_vec.at(1).at(1);
+        double x_two = cluster_means_vec.at(1).at(0);
+
+        double ones_distance_to_one = hypot(abs(x_one - mOld_x_one),abs(y_one - mOld_y_one));
+        double ones_distance_to_two = hypot(abs(x_one - mOld_x_two),abs(y_one - mOld_y_two));
+        double twos_distance_to_one = hypot(abs(x_two - mOld_x_one),abs(y_two - mOld_y_one));
+        double twos_distance_to_two = hypot(abs(x_two - mOld_x_two),abs(y_one - mOld_y_two));
+
+        if(ones_distance_to_one <= twos_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
+            insertPathData(x_one, y_one, x_two, y_two);
+        }
+        else if(ones_distance_to_one <= twos_distance_to_one && ones_distance_to_two <= twos_distance_to_two){
+            if (ones_distance_to_two <= ones_distance_to_one) {
+                insertPathData(x_two, y_two, x_one, y_one);
+            }
+            else {
+                insertPathData(x_one, y_one, x_two, y_two);
+            }
+        }
+        else if(twos_distance_to_one <= ones_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
+            if (twos_distance_to_two <= twos_distance_to_one) {
+                insertPathData(x_one, y_one, x_two, y_two);
+            }
+            else {
+                insertPathData(x_two, y_two, x_one, y_one);
+            }
+
+        }
+        else {
+            insertPathData(x_two, y_two, x_one, y_one);
+        }
+
+    }
+
+    cluster_means_vec.clear();
+}
+
+void Mapping::insertPathData(double x_one, double y_one, double x_two, double y_two) {
+    vector <int> temp_one;
+    temp_one.push_back(x_one);
+    temp_one.push_back(y_one);
+
+    vector <int> temp_two;
+    temp_two.push_back(x_two);
+    temp_two.push_back(y_two);
+
+    cluster_one_list.push_back(temp_one);
+    cluster_two_list.push_back(temp_two);
+    mGridCluster_one->data.at((int(x_one) * m_width) + int(y_one))=-100;
+    mGridCluster_one->data.at((int(x_two) * m_width) + int(y_two))=100;
+    mOld_x_one = x_one;
+    mOld_y_one = y_one;
+    mOld_x_two = x_two;
+    mOld_y_two = y_two;
+
+
+}
+
+
+void Mapping::printStuff(string stuff) {
+    ofstream path_to_file("/home/julian/Desktop/Uni/Bachelor/6.Semester/Elsa/PathFinder/distance_algorithm/src/path.txt", ios::out|ios::app);
+    path_to_file << stuff << endl;
+    path_to_file.close();
+
 }
 
