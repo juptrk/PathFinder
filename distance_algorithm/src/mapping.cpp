@@ -272,13 +272,13 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
 void Mapping::findPoints() {
     int x_one, x_two, y_one, y_two = 0;
     int counter = 0;
-    bool record_one, record_two = false;
+    bool record_one = false;
+    bool record_two = false;
     for (int i = 0; i < m_width; i++) {
         for (int j = 0; j < m_height; j++) {
             int position = (j * m_width) + i;
 
             if (mGridAct->data.at(position) > 0) {
-
                 vector <int> temp;
                 temp.push_back(i);
                 temp.push_back(j);
@@ -287,8 +287,10 @@ void Mapping::findPoints() {
 
                 mGridAct->data.at(position) = 0;
                 findClusters(i, j);
+                std::cout << "Here test"<< std::endl;
+                std::cout << "Here size" << cluster_list.size() << std::endl;
 
-                if (cluster_list.size() >= 5) {
+                if (cluster_list.size() >= 3) {
                     double x_mean, y_mean = 0;
 
                     for (int s = 0; s < cluster_list.size(); s++) {
@@ -306,6 +308,7 @@ void Mapping::findPoints() {
                     mGridCluster->data.at((x_draw * m_width) + y_draw)=-100;
                     //Anzahl der gefundenen Cluster wird hochgezählt
                     counter++;
+                    std::cout << "Here counter" << counter << std::endl;
 
                     //Die mittlere Koordinate wird in eine der beiden Listen eingetragen
                     vector <int> temp;
@@ -314,10 +317,15 @@ void Mapping::findPoints() {
                     //Fuer den allerersten Eintrag wird die Liste festgelegt
                     if(counter ==1){
                         if(cluster_one_list.size() == 0){
+                            std::cout << "Here 1" << std::endl;
                             cluster_one_list.push_back(temp);
                             record_one = true;
+                            mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
+                            mOld_x_one = x_mean;
+                            mOld_y_one = y_mean;
                         }
                         else{
+                            std::cout << "Here 2" << std::endl;
                             //Distanz zu den beiden letzten Punkten in der Liste wird berechnet
                             //double distance_to_one = hypot(abs(x_mean - cluster_one_list.at(cluster_one_list.size() -1).at(1)),
                             //                               abs(y_mean - cluster_one_list.at(cluster_one_list.size() -1).at(0)));
@@ -328,6 +336,9 @@ void Mapping::findPoints() {
                             //Falls in beiden Listen kein Eintrag ist wird das Cluster der Liste 1 zugeordnet
                             //Sonst jeweils der Liste zu der es am nächsten ist
                             //(leerer Eintrag ist bei (-1000 , -1000) also grosse Distanz
+
+                            std::cout << "Distanz zu eins" << distance_to_one << std::endl;
+                            std::cout << "Distanz zu zwei" << distance_to_two << std::endl;
                             if(distance_to_one <= distance_to_two){
                                 cluster_one_list.push_back(temp);
                                 record_one = true;
@@ -336,6 +347,7 @@ void Mapping::findPoints() {
                                 mOld_y_one = y_mean;
                             }
                             else{
+                                std::cout << "Here 3" << std::endl;
                                 cluster_two_list.push_back(temp);
                                 record_two = true;
                                 mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
@@ -351,6 +363,7 @@ void Mapping::findPoints() {
                     else if(record_one == true && record_two == false ){
                         cluster_two_list.push_back(temp);
                         record_two = true;
+                        std::cout << "cluster two " << counter << std::endl;
                         mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
                         mOld_x_two = x_mean;
                         mOld_y_two = y_mean;
@@ -358,6 +371,7 @@ void Mapping::findPoints() {
                     else if(record_two == true && record_one == false){
                         cluster_one_list.push_back(temp);
                         record_one = true;
+                        std::cout << "cluster one " << counter << std::endl;
                         mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
                         mOld_x_one = x_mean;
                         mOld_y_one = y_mean;
@@ -370,21 +384,25 @@ void Mapping::findPoints() {
                 cluster_list.clear();
             }
         }
-        std::cout << "Step: " << counter << std::endl;
+        //std::cout << "Step: " << counter << std::endl;
         //Wenn in die Liste kein Cluster eingetragen wurde wird ein leerer Eintrag eingetragen
         vector <int> temp;
         temp.push_back(-1000);
         temp.push_back(-1000);
 
+        //std::cout << "recordOne " << record_one << std::endl;
+        //std::cout << "recordTwo " << record_two << std::endl;
         if(record_one == false){
         cluster_one_list.push_back(temp);
         mOld_x_one = -1000;
         mOld_y_one = -1000;
+        //std::cout << "No cluster one " << counter << std::endl;
         }
-        else if(record_two == false ){
+        if(record_two == false ){
          cluster_two_list.push_back(temp);
          mOld_x_two = -1000;
          mOld_y_two = -1000;
+        //std::cout << "No cluster two " << counter << std::endl;
         }
     }
 
