@@ -64,6 +64,10 @@ Mapping::Mapping():
     mGridRef->info.origin.position.x = mGridCluster->info.origin.position.x = mGridAct->info.origin.position.x = - width / 2.5;
     mGridRef->info.origin.position.y = mGridCluster->info.origin.position.y = mGridAct->info.origin.position.y = - height / 2.5;
 
+    vector <vector <int> > cluster_list;
+    vector <time_t> timestamp_list;
+    vector <vector <int> > cluster_one_list;
+    vector <vector <int> > cluster_two_list;
 }
 
 Mapping::~Mapping()
@@ -84,6 +88,7 @@ void Mapping::laserCallback(const sensor_msgs::LaserScanConstPtr &scan)
 void Mapping::update()
 {
 
+    timestamp_list.push_back(mScan->header.stamp.sec);
     counter++;
     // Benötigte Transformation zwischen Laser und Odom
     tf::StampedTransform transform;
@@ -132,9 +137,10 @@ void Mapping::update()
         updateActualGrid(angle, position, act_x, act_y);
         mGridAct = subtractGrids(mGridAct, mGridRef);
 
+        pub_map.publish(mGridAct);
+
         findPoints();
 
-        pub_map.publish(mGridAct);
         pub_cluster_map.publish(mGridCluster);
         mGridAct.reset(new nav_msgs::OccupancyGrid);
         mGridAct->info.resolution = 0.05;
@@ -160,7 +166,7 @@ void Mapping::update()
 }
 
 nav_msgs::OccupancyGridPtr Mapping::subtractGrids(nav_msgs::OccupancyGridPtr &first,
-                                                    const nav_msgs::OccupancyGridPtr &second)
+                                                  const nav_msgs::OccupancyGridPtr &second)
 {
     int number = first->info.width * first->info.height;
 
@@ -177,8 +183,8 @@ nav_msgs::OccupancyGridPtr Mapping::subtractGrids(nav_msgs::OccupancyGridPtr &fi
 //Betrachtung alle Laserstrahlen in umgekehrter Reihenfolge (da Laser auf Roboter invertiert)
 
 void Mapping::updateReferenceGrid(double angle, int position, double act_x, double act_y) {
-        double angle_increment = mScan->angle_increment;
-        double resolution = mGridRef->info.resolution;
+    double angle_increment = mScan->angle_increment;
+    double resolution = mGridRef->info.resolution;
 
     for (int i = 0; i < mScan->ranges.size(); i++, angle += angle_increment) {
         double range = mScan->ranges[i];
@@ -215,8 +221,8 @@ void Mapping::updateReferenceGrid(double angle, int position, double act_x, doub
 }
 
 void Mapping::updateActualGrid(double angle, int position, double act_x, double act_y) {
-        double angle_increment = mScan->angle_increment;
-        double resolution = mGridAct->info.resolution;
+    double angle_increment = mScan->angle_increment;
+    double resolution = mGridAct->info.resolution;
 
     for (int i = 0; i < mScan->ranges.size(); i++, angle += angle_increment) {
         double range = mScan->ranges[i];
@@ -253,57 +259,65 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
 }
 
 void Mapping::findPoints() {
+    int x_one, x_two, y_one, y_two = 0;
+    int counter = 0;
     for (int i = 0; i < m_width; i++) {
         for (int j = 0; j < m_height; j++) {
             int position = (j * m_width) + i;
 
             if (mGridAct->data.at(position) > 0) {
-                list <list <int> > cluster_list;
 
-                cluster_list = findClusters(i, j);
+                vector <int> temp;
+                temp.push_back(i);
+                temp.push_back(j);
 
-                for (int s = 0; s < cluster_list.size(); s++) {
-                    int my_pos = (cluster_list.front().back() * m_width) + cluster_list.front().front();
-                    mGridCluster->data.at(my_pos) = 100;
-                    cluster_list.pop_front();
+                cluster_list.push_back(temp);
+
+                findClusters(i, j);
+
+                if (cluster_list.size() >= 5) {
+
+                    for (int s = 0; s < cluster_list.size(); s++) {
+                        int my_pos = (cluster_list.at(s).at(1) * m_width) + cluster_list.at(s).at(0);
+                        mGridCluster->data.at(my_pos) = 100;
+                        mGridAct->data.at(my_pos) = 0;
+                    }
+                    counter++;
                 }
 
+                cluster_list.clear();
             }
         }
+        std::cout << "Step: " << counter << std::endl;
     }
 }
 
 
+void Mapping::findClusters(int x, int y) {
 
-list <list <int> > Mapping::findClusters(int x, int y) {
-    list <list <int> > cluster_list;
 
-    list <int> temp;
-    temp.push_back(x);
-    temp.push_back(y);
-
-    cluster_list.push_back(temp);
-
-    for (int l = x-0; l <= x+0; l++) {
-        for (int k = y-0; k <= y+0; k++) {
+    for (int l = x-5; l <= x+5; l++) {
+        for (int k = y-5; k <= y+5; k++) {
             if (l == x && k == y) {
                 continue;
             }
-            int position = (k * m_width) + l;
+            int temp_pos = (k * m_width) + l;
 
-            if (mGridAct->data.at(position) > 0) {
-                list <list <int> > temp_list;
-                temp_list = findClusters(l, k);
+            if (mGridAct->data.at(temp_pos) > 0) {
 
-                for (int m = 0; m < temp_list.size(); m++) {
-                    cluster_list.push_back(temp_list.back());
-                    temp_list.pop_back();
-                }
+                vector <int> temp;
+                temp.push_back(l);
+                temp.push_back(k);
+
+                cluster_list.push_back(temp);
+
+                mGridAct->data.at(temp_pos) = 0;
+
+                findClusters(l, k);
+
             }
         }
     }
-
-    return cluster_list;
 }
 
 

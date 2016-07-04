@@ -3,8 +3,10 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
-#include <list>
-using std::list;
+#include <vector>
+#include <time.h>
+
+using std::vector;
 
 /// The Mapping class provides functions for mapping with an Occupancy Grid.
 class Mapping
@@ -33,7 +35,7 @@ private:
     void updateReferenceGrid(double angle, int position, double act_x, double act_y);
     void updateActualGrid(double angle, int position, double act_x, double act_y);
 
-    list <list <int> > findClusters(int x, int y);
+    void findClusters(int x, int y);
     void findPoints();
 
     nav_msgs::OccupancyGridPtr subtractGrids(nav_msgs::OccupancyGridPtr &first, const nav_msgs::OccupancyGridPtr &second);
@@ -48,6 +50,11 @@ private:
     ros::Publisher pub_map;
     ros::Publisher pub_ref_map;
     ros::Publisher pub_cluster_map;
+
+    vector <vector <int> > cluster_list;
+    vector <time_t> timestamp_list;
+    vector <vector <int> > cluster_one_list;
+    vector <vector <int> > cluster_two_list;
 
 
     double width;
