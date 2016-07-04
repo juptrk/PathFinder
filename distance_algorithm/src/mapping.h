@@ -59,6 +59,7 @@ private:
     vector <vector <int> > cluster_one_list;
     vector <vector <int> > cluster_two_list;
 
+    int mOld_x_one, mOld_x_two, mOld_y_one, mOld_y_two;
 
     double width;
     double height;

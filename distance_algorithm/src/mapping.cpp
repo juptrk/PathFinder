@@ -43,7 +43,7 @@ Mapping& Mapping::instance()
 }
 
 Mapping::Mapping():
-    counter(0)
+    counter(0), mOld_x_one(0), mOld_x_two(0), mOld_y_one(0), mOld_y_two(0)
 {
     // Das Gitter wird angelegt
     mGridRef.reset(new nav_msgs::OccupancyGrid);
@@ -60,17 +60,20 @@ Mapping::Mapping():
     m_width = width / mGridRef->info.resolution;
     m_height = height / mGridRef->info.resolution;
 
-    mGridRef->header.frame_id = mGridCluster->header.frame_id = mGridAct->header.frame_id = "/front_laser";
-    mGridRef->info.width = mGridCluster->info.width = mGridAct->info.width = m_width;
-    mGridRef->info.height = mGridCluster->info.height = mGridAct->info.height = m_height;
+    mGridRef->header.frame_id = mGridCluster->header.frame_id = mGridAct->header.frame_id = mGridCluster_one->header.frame_id = mGridCluster_two->header.frame_id  = "/front_laser";
+    mGridRef->info.width = mGridCluster->info.width = mGridAct->info.width = mGridCluster_one->info.width = mGridCluster_two->info.width= m_width;
+    mGridRef->info.height = mGridCluster->info.height = mGridAct->info.height = mGridCluster_one->info.height = mGridCluster_two->info.height= m_height;
     // Initialisierung der Zellen mit 50 und Übernahme von width und height
     mGridRef->data.resize(mGridRef->info.width * mGridRef->info.height, 0);
     mGridCluster->data.resize(mGridCluster->info.width * mGridCluster->info.height, 0);
     mGridAct->data.resize(mGridAct->info.width * mGridAct->info.height, 0);
+    mGridCluster_one->data.resize(mGridCluster_one->info.width * mGridCluster_one->info.height, 0);
+    mGridCluster_two->data.resize(mGridCluster_two->info.width * mGridCluster_two->info.height, 0);
+
 
     // Setzen des Ursprungs
-    mGridRef->info.origin.position.x = mGridCluster->info.origin.position.x = mGridAct->info.origin.position.x = - width / 2.5;
-    mGridRef->info.origin.position.y = mGridCluster->info.origin.position.y = mGridAct->info.origin.position.y = - height / 2.5;
+    mGridRef->info.origin.position.x = mGridCluster->info.origin.position.x = mGridAct->info.origin.position.x = mGridCluster_one->info.origin.position.x = mGridCluster_two->info.origin.position.x = - width / 2.5;
+    mGridRef->info.origin.position.y = mGridCluster->info.origin.position.y = mGridAct->info.origin.position.y = mGridCluster_one->info.origin.position.y = mGridCluster_two->info.origin.position.y= - height / 2.5;
 
     vector <vector <int> > cluster_list;
     vector <time_t> timestamp_list;
@@ -316,20 +319,28 @@ void Mapping::findPoints() {
                         }
                         else{
                             //Distanz zu den beiden letzten Punkten in der Liste wird berechnet
-                            double distance_to_one = hypot(abs(x_mean - cluster_one_list.back().at(1)),
-                                                           abs(y_mean - cluster_one_list.back().at(0)));
-                            double distance_to_two = hypot (abs(x_mean - cluster_two_list.back().at(1)),
-                                                            abs(y_mean - cluster_two_list.back().at(0)));
+                            //double distance_to_one = hypot(abs(x_mean - cluster_one_list.at(cluster_one_list.size() -1).at(1)),
+                            //                               abs(y_mean - cluster_one_list.at(cluster_one_list.size() -1).at(0)));
+                            //double distance_to_two = hypot (abs(x_mean - cluster_two_list.at(cluster_two_list.size() -1).at(1)),
+                            //                                abs(y_mean - cluster_two_list.at(cluster_two_list.size() -1).at(0)));
+                            double distance_to_one = hypot(abs(x_mean - mOld_x_one),abs(y_mean - mOld_y_one));
+                            double distance_to_two = hypot(abs(x_mean - mOld_x_two),abs(y_mean - mOld_y_two));
                             //Falls in beiden Listen kein Eintrag ist wird das Cluster der Liste 1 zugeordnet
                             //Sonst jeweils der Liste zu der es am nächsten ist
                             //(leerer Eintrag ist bei (-1000 , -1000) also grosse Distanz
                             if(distance_to_one <= distance_to_two){
                                 cluster_one_list.push_back(temp);
                                 record_one = true;
+                                mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
+                                mOld_x_one = x_mean;
+                                mOld_y_one = y_mean;
                             }
                             else{
                                 cluster_two_list.push_back(temp);
                                 record_two = true;
+                                mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
+                                mOld_x_two = x_mean;
+                                mOld_y_two = y_mean;
                             }
                         }
 
@@ -340,10 +351,16 @@ void Mapping::findPoints() {
                     else if(record_one == true && record_two == false ){
                         cluster_two_list.push_back(temp);
                         record_two = true;
+                        mGridCluster_two->data.at((x_draw * m_width) + y_draw)=100;
+                        mOld_x_two = x_mean;
+                        mOld_y_two = y_mean;
                     }
                     else if(record_two == true && record_one == false){
                         cluster_one_list.push_back(temp);
                         record_one = true;
+                        mGridCluster_one->data.at((x_draw * m_width) + y_draw)=-100;
+                        mOld_x_one = x_mean;
+                        mOld_y_one = y_mean;
                     }
                     else{
                         std::cout << "Too many clusters detected!! " << counter << std::endl;
@@ -361,9 +378,13 @@ void Mapping::findPoints() {
 
         if(record_one == false){
         cluster_one_list.push_back(temp);
+        mOld_x_one = -1000;
+        mOld_y_one = -1000;
         }
         else if(record_two == false ){
          cluster_two_list.push_back(temp);
+         mOld_x_two = -1000;
+         mOld_y_two = -1000;
         }
     }
 
