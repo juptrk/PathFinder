@@ -279,11 +279,11 @@ void Mapping::findPoints() {
             int position = (j * m_width) + i;
 
             if (mGridAct->data.at(position) > 0) {
-                vector <int> temp;
-                temp.push_back(i);
-                temp.push_back(j);
+                vector <int> temp1;
+                temp1.push_back(i);
+                temp1.push_back(j);
 
-                cluster_list.push_back(temp);
+                cluster_list.push_back(temp1);
 
                 mGridAct->data.at(position) = 0;
                 findClusters(i, j);
@@ -291,7 +291,8 @@ void Mapping::findPoints() {
                 std::cout << "Here size" << cluster_list.size() << std::endl;
 
                 if (cluster_list.size() >= 3) {
-                    double x_mean, y_mean = 0;
+                    double x_mean= 0;
+                    double y_mean = 0;
 
                     for (int s = 0; s < cluster_list.size(); s++) {
                         x_mean += cluster_list.at(s).at(1);
