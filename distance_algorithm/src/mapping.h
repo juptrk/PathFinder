@@ -64,7 +64,7 @@ private:
     vector <time_t> timestamp_list;
     vector <vector <int> > cluster_one_list;
     vector <vector <int> > cluster_two_list;
-    vector <vector <int> > cluster_means_vec;
+    vector <vector <double> > cluster_means_vec;
 
     int mOld_x_one, mOld_x_two, mOld_y_one, mOld_y_two;
 

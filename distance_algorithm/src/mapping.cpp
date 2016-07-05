@@ -9,6 +9,18 @@
 
 using namespace ros;
 
+/*TODO
+ *
+ * resolution als member variable und dann die unten aufrufen wenn in die datei geschrieben wird
+ *
+ * zurücksetzen der grids auslagern und dann immer aufrufen mit dem jeweiligen grid
+ *
+ * kommentare auf english und überall
+ *
+ * Elsa, ich liebe dich so sehr <3
+ *
+ */
+
 int Mapping::exec(int argc, char *argv[])
 {
     NodeHandle nh;
@@ -308,13 +320,13 @@ void Mapping::findPoints() {
                         mGridCluster->data.at(my_pos) = 100;
                         mGridAct->data.at(my_pos) = 0;
                     }
-                    x_mean /= vec_size;
-                    y_mean /= vec_size;
+                    x_mean /= double(vec_size);
+                    y_mean /= double(vec_size);
 
                     mGridCluster->data.at((int(x_mean) * m_width) + int(y_mean))=-100;
 
                     //Die mittlere Koordinate wird in eine der beiden Listen eingetragen
-                    vector <int> temp2;
+                    vector <double> temp2;
 
                     temp2.push_back(x_mean);
                     temp2.push_back(y_mean);
@@ -358,6 +370,8 @@ void Mapping::findClusters(int x, int y) {
 
 
 void Mapping::updatePaths() {
+    double res = mGridAct->info.resolution;
+
     int means_number = cluster_means_vec.size();
 
     ros::Duration currentDuration = mActTime - mStartTime;
@@ -365,7 +379,7 @@ void Mapping::updatePaths() {
 
     std::ostringstream strs;
     std::string currentPrint;
-    int threshold = 300;
+    int threshold = 10;
 
     if (means_number == 0) {
         vector <int> temp;
@@ -383,23 +397,23 @@ void Mapping::updatePaths() {
         //NA is only printed if the other Cluster is either X or has a value
 
         if(mcounterNoOne == threshold && mcounterNoTwo == threshold){
-            strs << relativeTime << ";NA;NA;NA;NA;";
+            strs << relativeTime << ";X;X;X;X;" << endl;
         }
         else if(mcounterNoOne == threshold ){
             if(mcounterNoTwo > threshold){
-                strs << relativeTime << ";X;X;NA2;NA2;";
+                strs << relativeTime << ";X;X;NA2;NA2;" << endl;
             }
             else{
-                strs << relativeTime << ";X;X;NA;NA;";
+                strs << relativeTime << ";X;X;NA;NA;" << endl;
             }
 
         }
         else if(mcounterNoTwo == threshold){
             if(mcounterNoOne > threshold){
-                strs << relativeTime << ";NA2;NA2;X;X";
+                strs << relativeTime << ";NA2;NA2;X;X;" << endl;
             }
             else{
-                strs << relativeTime << ";NA;NA;X;X";
+                strs << relativeTime << ";NA;NA;X;X;" << endl;
             }
         }
 
@@ -433,7 +447,7 @@ void Mapping::updatePaths() {
             else{
                 thresholdNoCluster = ";NA;NA;";
             }
-            strs << relativeTime << ";" << x << ";" << y << thresholdNoCluster;
+            strs << relativeTime << ";" << x*res << ";" << y*res << thresholdNoCluster << endl;
 
         }
         else{
@@ -452,7 +466,7 @@ void Mapping::updatePaths() {
             else{
                 thresholdNoCluster = ";NA;NA;";
             }
-            strs << relativeTime << thresholdNoCluster << x << ";" << y << ";";
+            strs << relativeTime << thresholdNoCluster << x*res << ";" << y*res << ";" << endl;
         }
     }
     else if (means_number == 2) {
@@ -471,43 +485,41 @@ void Mapping::updatePaths() {
 
         if(ones_distance_to_one <= twos_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
             insertPathData(x_one, y_one, x_two, y_two);
-            strs << relativeTime << ";" << x_one << ";" << y_one << ";" << x_two << ";" << y_two << ";";
+            strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
         }
         else if(ones_distance_to_one <= twos_distance_to_one && ones_distance_to_two <= twos_distance_to_two){
             if (ones_distance_to_two <= ones_distance_to_one) {
                 insertPathData(x_two, y_two, x_one, y_one);
-                strs << relativeTime << ";" << x_two << ";" << y_two << ";" << x_one << ";" << y_one << ";";
+                strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
 
             }
             else {
                 insertPathData(x_one, y_one, x_two, y_two);
-                strs << relativeTime << ";" << x_one << ";" << y_one << ";" << x_two << ";" << y_two << ";";
+                strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
 
             }
         }
         else if(twos_distance_to_one <= ones_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
             if (twos_distance_to_two <= twos_distance_to_one) {
                 insertPathData(x_one, y_one, x_two, y_two);
-                strs << relativeTime << ";" << x_one << ";" << y_one << ";" << x_two << ";" << y_two << ";";
+                strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
             }
             else {
                 insertPathData(x_two, y_two, x_one, y_one);
-                strs << relativeTime << ";" << x_two << ";" << y_two << ";" << x_one << ";" << y_one << ";";
+                strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
             }
 
         }
         else {
             insertPathData(x_two, y_two, x_one, y_one);
-            strs << relativeTime << ";" << x_two << ";" << y_two << ";" << x_one << ";" << y_one << ";";
+            strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
         }
-
     }
 
     //strs << relativeTime;
-    if(means_number != 0){
-        currentPrint = strs.str();
-        printStuff(currentPrint);
-    }
+    currentPrint = strs.str();
+    printStuff(currentPrint);
+
     cluster_means_vec.clear();
 }
 
@@ -534,8 +546,8 @@ void Mapping::insertPathData(double x_one, double y_one, double x_two, double y_
 
 
 void Mapping::printStuff(string stuff) {
-    ofstream path_to_file("/home/julian/Desktop/Uni/Bachelor/6.Semester/Elsa/PathFinder/distance_algorithm/src/path1.txt", ios::out|ios::app);
-    path_to_file << stuff << endl;
+    ofstream path_to_file("/home/julian/Desktop/Uni/Bachelor/6.Semester/Elsa/PathFinder/distance_algorithm/src/path2.txt", ios::out|ios::app);
+    path_to_file << stuff;
     path_to_file.close();
 
 }
