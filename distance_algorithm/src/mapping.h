@@ -76,4 +76,10 @@ private:
     double m_range_min;
     tf::TransformListener listener;
     int counter;
+    int mcounterNoOne;
+    int mcounterNoTwo;
+
+    ros::Time mStartTime;
+    ros::Time mActTime;
+    bool mFirstCall;
 };
