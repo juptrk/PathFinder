@@ -44,6 +44,10 @@ private:
     void insertPathData(double x_one, double y_one, double x_two, double y_two);
     void printStuff(string stuff);
 
+    string threeClustersFound();
+    string twoClustersFound(double y_one,double x_one,double y_two,double x_two,double ones_distance_to_one,double ones_distance_to_two,double twos_distance_to_one,double twos_distance_to_two);
+
+
     nav_msgs::OccupancyGridPtr subtractGrids(nav_msgs::OccupancyGridPtr &first, const nav_msgs::OccupancyGridPtr &second);
 
     nav_msgs::OdometryConstPtr mOdom; // actual odometry data

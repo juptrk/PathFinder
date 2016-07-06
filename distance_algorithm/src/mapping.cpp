@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <string>
+#include <algorithm>
 
 #include <sstream>
 #include <fstream>
@@ -17,7 +18,6 @@ using namespace ros;
  *
  * kommentare auf english und überall
  *
- * Elsa, ich liebe dich so sehr <3
  *
  */
 
@@ -221,6 +221,7 @@ void Mapping::updateReferenceGrid(double angle, int position, double act_x, doub
     double resolution = mGridRef->info.resolution;
 
     for (int i = 0; i < mScan->ranges.size(); i++, angle += angle_increment) {
+        if(i>30){
         double range = mScan->ranges[i];
 
         //Messung die sich ergeben hat, weil das nächste Hindernis weiter als der Sichtbereich des
@@ -251,6 +252,7 @@ void Mapping::updateReferenceGrid(double angle, int position, double act_x, doub
         //Zelle in der sich das Hindernis befindet wird als besetzt markiert
         position = (int(grid_y) * m_width) + int(grid_x);
         mGridRef->data.at(position) = 100;
+        }
     }
 }
 
@@ -259,6 +261,7 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
     double resolution = mGridAct->info.resolution;
 
     for (int i = 0; i < mScan->ranges.size(); i++, angle += angle_increment) {
+        if(i>30){
         double range = mScan->ranges[i];
 
         //Messung die sich ergeben hat, weil das nächste Hindernis weiter als der Sichtbereich des
@@ -289,6 +292,7 @@ void Mapping::updateActualGrid(double angle, int position, double act_x, double 
         //Zelle in der sich das Hindernis befindet wird als besetzt markiert
         position = (int(grid_y) * m_width) + int(grid_x);
         mGridAct->data.at(position) = 100;
+        }
     }
 }
 
@@ -309,7 +313,7 @@ void Mapping::findPoints() {
 
                 int vec_size = cluster_list.size();
 
-                if (vec_size >= 4) {
+                if (vec_size >= 3) {
                     double x_mean = 0;
                     double y_mean = 0;
 
@@ -389,12 +393,12 @@ void Mapping::updatePaths() {
         cluster_two_list.push_back(temp);
         mcounterNoOne++;
         mcounterNoTwo++;
-        //Data is saved in the format (time;x_Cluster1;y_Cluster1;x_Cluster2;y_Cluster2)
-        //If the threshold (300) is reached the end of the tracked path is
-        //marked with X
-        //If there is nothing tracked for that Cluster but the threshold isn't
-        //reached yet NA is printed, if we are above the threshold NA2 is printed
-        //NA is only printed if the other Cluster is either X or has a value
+//        //Data is saved in the format (time;x_Cluster1;y_Cluster1;x_Cluster2;y_Cluster2)
+//        //If the threshold (10) is reached the end of the tracked path is
+//        //marked with X
+//        //If there is nothing tracked for that Cluster but the threshold isn't
+//        //reached yet NA is printed, if we are above the threshold NA2 is printed
+//        //NA is only printed if the other Cluster is either X or has a value
 
         if(mcounterNoOne == threshold && mcounterNoTwo == threshold){
             strs << relativeTime << ";X;X;X;X;" << endl;
@@ -416,6 +420,8 @@ void Mapping::updatePaths() {
                 strs << relativeTime << ";NA;NA;X;X;" << endl;
             }
         }
+        currentPrint = strs.str();
+
 
     }
     else if (means_number == 1) {
@@ -448,6 +454,8 @@ void Mapping::updatePaths() {
                 thresholdNoCluster = ";NA;NA;";
             }
             strs << relativeTime << ";" << x*res << ";" << y*res << thresholdNoCluster << endl;
+            currentPrint = strs.str();
+
 
         }
         else{
@@ -467,6 +475,8 @@ void Mapping::updatePaths() {
                 thresholdNoCluster = ";NA;NA;";
             }
             strs << relativeTime << thresholdNoCluster << x*res << ";" << y*res << ";" << endl;
+            currentPrint = strs.str();
+
         }
     }
     else if (means_number == 2) {
@@ -478,46 +488,19 @@ void Mapping::updatePaths() {
         double ones_distance_to_one = hypot(abs(x_one - mOld_x_one),abs(y_one - mOld_y_one));
         double ones_distance_to_two = hypot(abs(x_one - mOld_x_two),abs(y_one - mOld_y_two));
         double twos_distance_to_one = hypot(abs(x_two - mOld_x_one),abs(y_two - mOld_y_one));
-        double twos_distance_to_two = hypot(abs(x_two - mOld_x_two),abs(y_one - mOld_y_two));
+        double twos_distance_to_two = hypot(abs(x_two - mOld_x_two),abs(y_two - mOld_y_two));
 
         mcounterNoTwo = 0;
         mcounterNoOne = 0;
 
-        if(ones_distance_to_one <= twos_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
-            insertPathData(x_one, y_one, x_two, y_two);
-            strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
-        }
-        else if(ones_distance_to_one <= twos_distance_to_one && ones_distance_to_two <= twos_distance_to_two){
-            if (ones_distance_to_two <= ones_distance_to_one) {
-                insertPathData(x_two, y_two, x_one, y_one);
-                strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
-
-            }
-            else {
-                insertPathData(x_one, y_one, x_two, y_two);
-                strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
-
-            }
-        }
-        else if(twos_distance_to_one <= ones_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
-            if (twos_distance_to_two <= twos_distance_to_one) {
-                insertPathData(x_one, y_one, x_two, y_two);
-                strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
-            }
-            else {
-                insertPathData(x_two, y_two, x_one, y_one);
-                strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
-            }
+        currentPrint = twoClustersFound(y_one,x_one,y_two,x_two,ones_distance_to_one,ones_distance_to_two,twos_distance_to_one,twos_distance_to_two);
 
         }
-        else {
-            insertPathData(x_two, y_two, x_one, y_one);
-            strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
-        }
-    }
+    
+   else if (means_number == 3){
+        currentPrint = threeClustersFound();
+   }
 
-    //strs << relativeTime;
-    currentPrint = strs.str();
     printStuff(currentPrint);
 
     cluster_means_vec.clear();
@@ -546,8 +529,93 @@ void Mapping::insertPathData(double x_one, double y_one, double x_two, double y_
 
 
 void Mapping::printStuff(string stuff) {
-    ofstream path_to_file("/home/julian/Desktop/Uni/Bachelor/6.Semester/Elsa/PathFinder/distance_algorithm/src/path2.txt", ios::out|ios::app);
+    ofstream path_to_file("/home/julian/Desktop/Uni/Bachelor/6.Semester/Elsa/PathFinder/distance_algorithm/src/path_subject1_Jens_extr0607_0855.txt", ios::out|ios::app);
     path_to_file << stuff;
     path_to_file.close();
 
+}
+
+string Mapping::threeClustersFound(){
+            double y_one = cluster_means_vec.at(0).at(1);
+            double x_one = cluster_means_vec.at(0).at(0);
+            double y_two = cluster_means_vec.at(1).at(1);
+            double x_two = cluster_means_vec.at(1).at(0);
+            double y_three = cluster_means_vec.at(2).at(1);
+            double x_three = cluster_means_vec.at(2).at(0);
+
+            double ones_distance_to_one = hypot(abs(x_one - mOld_x_one),abs(y_one - mOld_y_one));
+            double ones_distance_to_two = hypot(abs(x_one - mOld_x_two),abs(y_one - mOld_y_two));
+            double twos_distance_to_one = hypot(abs(x_two - mOld_x_one),abs(y_two - mOld_y_one));
+            double twos_distance_to_two = hypot(abs(x_two - mOld_x_two),abs(y_two - mOld_y_two));
+            double threes_distance_to_one = hypot(abs(x_three - mOld_x_one),abs(y_three - mOld_y_one));
+            double threes_distance_to_two = hypot(abs(x_three - mOld_x_two),abs(y_three - mOld_y_two));
+
+            mcounterNoTwo = 0;
+            mcounterNoOne = 0;
+
+            double minOne = min(ones_distance_to_one, ones_distance_to_two);
+            double minTwo = min(twos_distance_to_one, twos_distance_to_two);
+            double minThree = min(threes_distance_to_one, threes_distance_to_two);
+
+            //Point one is further away than two and three
+            if(minOne >= minTwo && minOne >= minThree){
+                ones_distance_to_one = threes_distance_to_one;
+                ones_distance_to_two = threes_distance_to_two;
+                y_one = y_three;
+                x_one = x_three;
+            }
+
+            //Point two is further away than one and three
+            if(minTwo >= minOne && minTwo >= minThree){
+                twos_distance_to_one = threes_distance_to_one;
+                twos_distance_to_two = threes_distance_to_two;
+                y_two = y_three;
+                x_two = x_three;
+            }
+
+            return twoClustersFound(y_one,x_one,y_two,x_two,ones_distance_to_one,ones_distance_to_two,twos_distance_to_one,twos_distance_to_two);
+
+
+}
+
+string Mapping::twoClustersFound(double y_one,double x_one,double y_two,double x_two,double ones_distance_to_one,double ones_distance_to_two,double twos_distance_to_one,double twos_distance_to_two){
+
+    std::ostringstream strs;
+    double res = mGridAct->info.resolution;
+    ros::Duration currentDuration = mActTime - mStartTime;
+    double relativeTime = currentDuration.toSec();
+
+    if(ones_distance_to_one <= twos_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
+        insertPathData(x_one, y_one, x_two, y_two);
+        strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
+    }
+    else if(ones_distance_to_one <= twos_distance_to_one && ones_distance_to_two <= twos_distance_to_two){
+        if (ones_distance_to_two <= ones_distance_to_one) {
+            insertPathData(x_two, y_two, x_one, y_one);
+            strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
+
+        }
+        else {
+            insertPathData(x_one, y_one, x_two, y_two);
+            strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
+
+        }
+    }
+    else if(twos_distance_to_one <= ones_distance_to_one && twos_distance_to_two <= ones_distance_to_two){
+        if (twos_distance_to_two <= twos_distance_to_one) {
+            insertPathData(x_one, y_one, x_two, y_two);
+            strs << relativeTime << ";" << x_one*res << ";" << y_one*res << ";" << x_two*res << ";" << y_two*res << ";" << endl;
+        }
+        else {
+            insertPathData(x_two, y_two, x_one, y_one);
+            strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
+        }
+
+    }
+    else {
+        insertPathData(x_two, y_two, x_one, y_one);
+        strs << relativeTime << ";" << x_two*res << ";" << y_two*res << ";" << x_one*res << ";" << y_one*res << ";" << endl;
+    }
+
+    return strs.str();
 }
